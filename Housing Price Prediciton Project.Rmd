@@ -1,0 +1,406 @@
+---
+title: "Data Mining Final Project"
+author: "Wanying Wang & Yue Ma"
+date: "12/17/2018"
+output: html_document
+---
+# Prediction of Housing Price in Ames
+## 1.Overview
+* This project grew out of curiosity about how much a house in Ames, Iowa will cost when given some informaiton about the particular house. The aim of this project is to practice the techniques of data mining especially the some models frequently used in prediction such as Lasso and random forest, though we will not limit our analysis only within these two models. We try to develop our techniques with real world dataset to provide some insights for better prediction in housing price.
+
+* The dataset we use was collected from residential homes in Ames, Iowa and contains 1460 observations and 79 explanatory variables describing almost every aspect of those homes. Our dependent variable is __SalePrice__. Below is the independent variables and dependent variable:
+```{r}
+hp <- read.csv("housing_price.csv")
+dim(hp)
+colnames(hp)
+```
+
+## 2. Analyze the Data
+### 2.1 Recoding the data
+* To begin with, we found there are some factor variables are in wrong order(alphabetic order), so we convert them into right order, then convert them into numeric variable to facilitate the following operations.
+```{r}
+## ExterQual
+hp$ExterQual <- factor(hp$ExterQual, levels = c("Po", "Fa", "TA", "Gd", "Ex"))
+hp$ExterQual <- as.numeric(hp$ExterQual)
+## ExterCond
+hp$ExterCond <- factor(hp$ExterCond, levels = c("Po", "Fa", "TA", "Gd", "Ex"))
+hp$ExterCond <- as.numeric(hp$ExterCond)
+## GarageQual
+hp$GarageQual <- factor(hp$GarageQual, levels = c("NA", "Po", "Fa", "TA", "Gd", "Ex"))
+hp$GarageQual <- as.numeric(hp$GarageQual)
+## GarageCond
+hp$GarageCond <- factor(hp$GarageCond, levels = c("NA", "Po", "Fa", "TA", "Gd", "Ex"))
+hp$GarageCond <- as.numeric(hp$GarageCond)
+## FireplaceQu
+hp$FireplaceQu <- factor(hp$FireplaceQu, levels = c("NA", "Po", "Fa", "TA", "Gd", "Ex"))
+hp$FireplaceQu <- as.numeric(hp$FireplaceQu)
+## KitchenQual
+hp$KitchenQual <- factor(hp$KitchenQual, levels = c("Po", "Fa", "TA", "Gd", "Ex"))
+hp$KitchenQual <- as.numeric(hp$KitchenQual)
+## HeatingQC
+hp$HeatingQC <- factor(hp$HeatingQC, levels = c("Po", "Fa", "TA", "Gd", "Ex"))
+hp$HeatingQC <- as.numeric(hp$HeatingQC)
+## BsmtQual
+hp$BsmtQual <- factor(hp$BsmtQual, levels = c("NA", "Po", "Fa", "TA", "Gd", "Ex"))
+hp$BsmtQual <- as.numeric(hp$BsmtQual)
+## BsmtCond
+hp$BsmtCond <- factor(hp$BsmtCond, levels = c("NA", "Po", "Fa", "TA", "Gd", "Ex"))
+hp$BsmtCond <- as.numeric(hp$BsmtCond)
+## PoolQC
+hp$PoolQC <- factor(hp$PoolQC, levels = c("NA", "Fa", "TA", "Gd", "Ex"))
+hp$PoolQC <- as.numeric(hp$PoolQC)
+```
+
+```{r}
+## BsmtExposure
+hp$BsmtExposure <- factor(hp$BsmtExposure, levels = c("NA", "No", "Mn", "Av", "Gd"))
+hp$BsmtExposure <- as.numeric(hp$BsmtExposure)
+```
+
+```{r}
+## BsmtFinType1
+hp$BsmtFinType1 <- factor(hp$BsmtFinType1, levels = c("NA", "Unf", "LwQ", "Rec", "BLQ", "ALQ", "GLQ"))
+hp$BsmtFinType1 <- as.numeric(hp$BsmtFinType1)
+## BsmtFinType2
+hp$BsmtFinType2 <- factor(hp$BsmtFinType2, levels = c("NA", "Unf", "LwQ", "Rec", "BLQ", "ALQ", "GLQ"))
+hp$BsmtFinType2 <- as.numeric(hp$BsmtFinType2)
+```
+
+```{r}
+## Functional
+hp$Functional <- factor(hp$Functional, levels = c("Sal", "Sev", "Maj2", "Maj1", "Mod", "Min2", "Min1", "Typ"))
+hp$Functional <- as.numeric(hp$Functional)
+```
+
+```{r}
+## GarageFinish
+hp$GarageFinish <- factor(hp$GarageFinish, levels = c("NA", "Unf", "RFn", "Fin"))
+hp$GarageFinish <- as.numeric(hp$GarageFinish)
+```
+
+```{r}
+## Fence
+hp$Fence <- factor(hp$Fence, levels = c("MnWw", "GdWo", "MnPrv", "GdPrv"))
+hp$Fence <- as.numeric(hp$Fence)
+```
+
+* Now, we have transformed all the factor variables with right order into numeric columns.
+
+### 2.2 Missing Data
+
+* In order to make this dataset into a complete one, which will be helpful for our future analysis and prediction but also guarantee we do not throw away valuable information, we firstly explore the completeness of this dataset and deal with NAs.
+
+* Since this dataset contains numeric and categorical variables, we will examine them seperately. First is the numeric variables.
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+## Extract numeric columns
+numericVar <- select_if(hp, is.numeric) 
+## Calculate the percentage of NAs in numeric variables
+numericNA <- as.data.frame(round(sort(colSums(is.na(numericVar))/nrow(numericVar), decreasing = T)*100, digits = 2)) 
+colnames(numericNA) <- "percentage of NA"
+numericNA
+```
+
+* Seeing from the table above, we can find that __PoolQC__, __Fence__ and __FireplaceQu__ these three variables have relatively higher percentage of NAs.
+
+* Next, we will focus on categorical variables (those categorical variable are coded as factor originnaly, we will deal with this later. Now, we just treat them as factor.):
+
+```{r}
+## Extract factor variables
+factorVar <- select_if(hp, is.factor) 
+## Calculate the percentage of NAs in categorical variables
+factorNA <- as.data.frame(round(sort(colSums(is.na(factorVar)) / nrow(factorVar),decreasing = T) * 100, digits = 2)) 
+colnames(factorNA) <- "percentage of NA"
+factorNA
+```
+* Seeing from the table above, we can find that __MiscFeature__ and __Alley__ these two variables have very high propotion of NAs. 
+
+* Having refered to the codebook, we find that __PoolQC__, __Fence__, __MiscFeature__ and __Alley__ represent "Pool area in square feet", , "Fence quality", "Miscellaneous feature not covered in other categories" and "Type of alley access to property". For the consideration that the first four factor variables with highest propotion of NAs are not the main elements that people take into consideration when they choose a house, so we just delet them from the dataset. For the rest of other variables, we just remove the NA directly.
+
+```{r}
+## Delete the four numeric variables with high propotion of NAs
+newhp1 <- subset(hp, select = -c (PoolQC, MiscFeature, Alley, Fence))
+
+## Remove NA directly
+newhp1 <- na.omit(newhp1) 
+dim(newhp1)
+```
+
+* Having remove NAs, we found we have lost more than half of the observations, so we decided to replace NAs with mean values of numeric variables and delete the NAs in categorical columns directly.
+
+```{r message=FALSE, warning=FALSE}
+## Delete the four numeric variables with high propotion of NAs
+newhp2 <- subset(hp, select = -c (PoolQC, MiscFeature, Alley, Fence))
+
+ ## Replace the NAs with the mean of numeric column
+for (i in 2:ncol(newhp2) - 1L){
+  newhp2[is.na(newhp2[,i]), i] <- round(mean(newhp2[,i], na.rm = TRUE), digits = 2)
+}  
+
+```
+
+```{r}
+## Remove the NA in categorical columns
+newhp2 <- na.omit(newhp2) 
+dim(newhp2)
+```
+* So, we finally have 1370 observations to analyze.
+
+### 2.3 Descriptive Summary of Dependet Variable: __SalePrice__
+```{r}
+summary(newhp2$SalePrice)
+```
+
+* Firstly, we have a look on the summary of __SalePrice__, the average price is 167,000 dollars, the minimum and maximun are 35,311 dollars and 755,000 dollars respectively.
+
+```{r}
+library(ggplot2)
+normality <- ggplot(newhp2)
+normality <- normality + geom_histogram(mapping = aes(SalePrice),bins = 30)
+normality
+```
+
+```{r}
+qqnorm(newhp2$SalePrice)
+qqline(newhp2$SalePrice,col = 2)
+```
+
+* Judging from the two figures above, we can find that our dependet variable is right skewed and does not follow the diagonal line. So, when we do our modeling thing, we need to do log transforamtion to this variable in order to normalize it, which is helpful for the rest of the prediction.
+```{r}
+newhp2$SalePrice <- log(newhp2$SalePrice)
+```
+
+### 2.4 Manipulate the Independent Variables
+
+* In this part, we will first explore the correlation between the response variable and the explanatory variables and the multicollinearity.
+
+```{r}
+## Convert the factor variables into numeric ones
+for (i in 2:ncol(newhp2) - 1L) {
+  if (is.factor(newhp2[,i])) {newhp2[,i] <- as.numeric(newhp2[,i])}
+}
+## correlations of all numeric variables
+cor_Var <- cor(newhp2, use = "pairwise.complete.obs")
+## sort on decreasing correlations with SalePrice
+cor_sorted <- as.matrix(sort(cor_Var[,'SalePrice'], decreasing = TRUE))
+## select only high corelations(correlation > 0.5)
+CorHigh <- names(which(apply(cor_sorted, 1, function(x) abs(x) > 0.5)))
+cor_Var <- cor_Var[CorHigh, CorHigh]
+## plot it out
+library(corrplot)
+corrplot.mixed(cor_Var, tl.col = "black", tl.pos = "lt", tl.cex = 0.7, cl.cex = .7, number.cex = .7)
+```
+
+* Next, we will roughly explore the relationship betweent the __SalePrice__ and some independent variables of high correlation.
+
+```{r}
+## OverallQual
+overallqual <- ggplot(newhp2, aes(x = OverallQual, y= SalePrice)) + geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red", aes(group = 1))
+overallqual
+```
+
+* There is a positive linear relationship between them judging from the plot above.
+
+```{r, error=TRUE}
+library(ggrepel)
+grlivarea <- ggplot(newhp2, aes(x = GrLivArea, y = SalePrice)) + 
+  geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red", aes(group = 1)) +
+  geom_text_repel(aes(label = ifelse(newhp2$GrLivArea > 4500, rownames(newhp2), '')))
+grlivarea
+```
+
+* There is a positive linear relationship between them. However, we found there are two observations that have very big area but with oddly low price. So, they may be the outlier.
+
+```{r}
+## ExterQual
+exterqual <- ggplot(newhp2, aes(x = ExterQual, y = SalePrice)) + geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red", aes(group = 1))
+exterqual
+```
+
+* There is a positive linear relationship, too.
+
+```{r}
+## KitchenQual
+kitchenqual <- ggplot(newhp2, aes(x = KitchenQual, y = SalePrice)) + geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red", aes(group = 1))
+kitchenqual
+```
+
+* There is a positive linear relationship, too.
+
+```{r, error=TRUE}
+## GarageCars
+garagecars <- ggplot(newhp2, aes(x = GarageCars, y = SalePrice)) + geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red", aes(group = 1)) + 
+  geom_text_repel(aes(label = ifelse(newhp2$GarageCars == 4 & newhp2$SalePrice < 12, rownames(newhp2), '')))
+garagecars
+```
+
+* Seeing from the five pictures above, we can exclude some observations who are outliers in order for more accurate prediction when do further analysis in the following models.
+
+## 3. Models
+### 3.1 Baseline Model
+* We firstly set OLS as our baseline model because we think there may be linear relationship between the response variable and explanatory variables.
+
+```{r}
+# split the dataset into training and testing
+library(caret)
+set.seed(20181219)
+in_train <- createDataPartition(y = newhp2$SalePrice,
+                                p = 3 / 4, list = FALSE)
+training <- newhp2[ in_train, ]
+testing <- newhp2[-in_train, ]
+```
+
+* Below we only showed the model with all the explanatory variables. We have tried to make regression with variables of high correlation(>0.5) and exclude the variables with collinearity. However, the difference of the prediction power (in terms of RMSE) among these three OLS models is very small, so we showed the one with complete variables.
+
+```{r}
+# run with OLS model
+set.seed(20181219)
+ols <- lm(SalePrice ~ . , data = training)
+summary(ols)
+```
+
+```{r message=FALSE, warning=FALSE}
+# predict in the testing data and calculate RMSE
+y_hat <- predict(ols, newdata = testing)
+defaultSummary(data.frame(obs = testing$SalePrice, pred = y_hat))
+```
+
+
+### 3.2 Penalized Model - Elstic-net model
+
+* Based on the OLS model, we want to improve it by excluding some irrelavant variables. So, we choose the elastic net model which combines the advantages of LASSO and Ridge. We want to fit this penalized model in order to shrink the some coefficients estimates towards zero, aiming to lower the RMSE.
+
+```{r include=FALSE, cache=TRUE}
+# run elastic-net model
+set.seed(20181219)
+ctrl <- trainControl(method = "cv", number = 10)
+enet <- train(SalePrice ~ ., data = training, method = "glmnet", 
+              trControl = ctrl, tuneLength = 10, preProcess = c("center", "scale"))
+```
+
+```{r}
+y_hat_glmnet <- predict(enet, newdata = testing)
+defaultSummary(data.frame(obs = testing$SalePrice, pred = y_hat_glmnet))
+```
+
+* The __Root Mean Square Error__ of elastic-net model is much smaller than that of the baseline model, which meets our expectation.
+
+```{r}
+# see the feature importance in elastic-net model
+varImp(enet)
+coef(enet$finalModel, enet$bestTune$lambda)
+```
+
+* For the relative importantce of the predictors, __OverallQual__, __GrLivArea__, __GarageCars__, __Fireplaces__ are the most important features. And we can find that there are 19 variables whose coefficients are constrained to zero.
+
+* Apart from elastic-net, there is another way to shrink the number of variables by taking the linear relationship between predictors and the outcome into consideratoin. It is PLS model. So, we will try this model to see whether it will improve our prediction.
+
+```{r}
+set.seed(20181219)
+PLS <- train(SalePrice ~ ., data = training, method = "pls", 
+             tuneLength = 20, trControl = ctrl)
+```
+
+```{r}
+y_hat_pls <- predict(PLS, newdata = testing)
+defaultSummary(data.frame(obs = testing$SalePrice, pred = y_hat_pls))
+```
+* Judging from the RMSE, it did not improve our prediction. Therefore, we need to explore some more advanced methods to do the prediction.
+
+### 3.3 Tree-based model
+#### 3.3.1 Bagging
+
+* Tree-based models involve stratifying or segmenting the predictor space into a number of simple regions. Bagging, random forests, and boosting use trees as building blocks to construct more powerful prediction models, usually improving the prediciton accuracy. We strat from bagging model.
+
+```{r}
+# bagging
+set.seed(20181219)
+bag <- train(SalePrice ~ ., data = training, method = "treebag",
+             trControl = ctrl)
+y_hat_treebag <- predict(bag, newdata = testing)
+defaultSummary(data.frame(obs = testing$SalePrice, pred = y_hat_treebag))
+```
+
+```{r}
+# features importance in bagging
+varImp(bag)
+```
+
+* In the bagging model, __GrLivArea__, __OverallQual__, __TotalBsmtSF__, __BsmtFinSF1__, are the most important features. However, the prediction becomes even worse.
+
+
+#### 3.3.2 Boosting
+
+* Like bagging, boosting is a general approach that can be applied to many statistical learning methods for regression or classification.
+* Boosting works in a similar way wih Bagging, except that the trees are grown _sequentially_ . Since each tree in bossting is grown using information from previously grown trees, we think it may improve the performance of prediction.
+
+```{r, cache=TRUE}
+# Boosting
+set.seed(20181219)
+gbm_grid <- expand.grid(.interaction.depth = seq(1, 7, by = 2),
+                        .n.trees = seq(100, 1000, by = 50),
+                        .shrinkage = c(0.01, 0.1),
+                        .n.minobsinnode = 5)
+boosted <- train(SalePrice ~ ., data = training, method = "gbm",
+                 trControl = ctrl, tuneGrid = gbm_grid, verbose = FALSE)
+```
+
+```{r}
+y_hat_gbm <- predict(boosted, newdata = testing)
+defaultSummary(data.frame(obs = testing$SalePrice, pred = y_hat_gbm))
+```
+
+* It did improve a lot, better than elastic-net.
+
+#### 3.3.3 Random Forest
+
+* Though boosting has improved the prediction, we want try another method:random forests. Because it provides an improvement over bagged trees by way of a small tweak that decorrelates the trees. Random forests overcome this problem by forcing each split to consider only a subset of the predictors.
+
+```{r, cache=TRUE}
+# Random Forest
+set.seed(20181219)
+rf_grid <- data.frame(.mtry = 2:(ncol(training) - 1L))
+rf <- train(SalePrice ~ ., data = training, method = "rf",
+            ntrees = 100, trControl = ctrl,
+            na.action = na.omit,
+            importance = TRUE)
+y_hat_rf <- predict(rf, newdata = testing)
+defaultSummary(data.frame(obs = testing$SalePrice, pred = y_hat_rf))
+```
+
+
+```{r}
+# see the feature importance in the Random Forest model
+varImp(rf)
+```
+
+* In the Random Forest model, __GrLivArea__, __OverallQual__, __TotalBsmtSF__, __X1stFlrSF__ are the most important features. However, it did not performe better than boosting.
+
+
+#### 3.3.4 Bayesian additive regression (BART)
+
+* Lastly, we want to have a try on BART. This approach enables full posterior inference including point and interval estimates of the unknown regression function as well as the marginal effects of potential predictors. By keeping track of predictor inclusion frequencies, BART can also be used for model-free variable selection. 
+
+```{r,cache=TRUE}
+library(BART)
+set.seed(20181219)
+X_train <- model.matrix(SalePrice ~ ., data = training)
+X_test <- model.matrix(SalePrice ~ ., data = testing)
+bart <- mc.wbart(X_train, y = training$SalePrice, X_test,
+                 mc.cores = parallel::detectCores())
+defaultSummary(data.frame(obs = testing$SalePrice,
+                          pred = bart$yhat.test.mean))
+```
+
+* Voila! BART performs the best, it has the lowest RMSE.
+
+## 4. Conclusion & Discussion 
+### 4.1 Conclusion
+
+* We use three types of models in total in this project. They are multiple linear regression (baseline model), models that can decrease the number of predictors including elastic net model (we also run the lasso and ridge model here, and elastic net model produces the lowest RMSE, which performs better than the other two.) and PLS, and tree-based model, including bagging, boosting, random forest and bayesian additive regression. From all the results above, the BART model predicts the best, with lowest Root Mean Square Error. 
+
+### 4.2 Discussion
+* Though we temporarily meet our expectation to some extents, we still have a lot to improve. For example, we can take the non-linear relationship of some predictors into consideration and some interactions, or adjust more times about the tuning parameters in the model for machine learning in order to produce a lower rooted mean square error.
+
+* Also in the data cleaning process, we replace NAs with mean values of numeric variables and delete the NAs in categorical columns directly. In the further project, we may adjust more manipulation of missing values. And we should examine more carefully to find out and exclude all the outliers that may influence the prediction.
