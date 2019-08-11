@@ -1,11 +1,3 @@
----
-title: "README"
-author: "Wanying Wang"
-date: "8/11/2019"
-output:
-  html_document:
-    keep_md: yes
----
 
 # House Price Prediction
 
